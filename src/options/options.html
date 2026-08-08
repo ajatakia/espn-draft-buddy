@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ESPN Draft Buddy — Options</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <main class="wrap">
+    <h1>ESPN Draft Buddy</h1>
+    <p class="sub">Import your tiered player rankings. This list is stored locally in your browser and used to check off drafted players during a live ESPN draft.</p>
+
+    <section class="card">
+      <h2>Current rankings</h2>
+      <p id="current-summary" class="muted">Loading…</p>
+    </section>
+
+    <section class="card">
+      <h2>Import</h2>
+      <div class="tabs">
+        <button class="tab-btn active" data-format="json" type="button">JSON</button>
+        <button class="tab-btn" data-format="csv" type="button">CSV</button>
+      </div>
+
+      <div id="json-panel" class="panel">
+        <p class="muted">Paste JSON with a <code>tiers</code> array, or upload a file. <a href="../../docs/json-format.md" id="json-format-link">Format reference</a></p>
+        <textarea id="json-input" rows="12" placeholder='{"tiers": [{"tierNumber": 1, "players": [{"name": "Christian McCaffrey", "position": "RB", "team": "SF", "rank": 1}]}]}'></textarea>
+      </div>
+
+      <div id="csv-panel" class="panel hidden">
+        <p class="muted">Columns: <code>tier,rank,name,position,team,notes</code>. Paste CSV or upload a file.</p>
+        <textarea id="csv-input" rows="12" placeholder="tier,rank,name,position,team,notes&#10;1,1,Christian McCaffrey,RB,SF,"></textarea>
+      </div>
+
+      <input type="file" id="file-input" accept=".json,.csv,.txt" />
+
+      <div class="actions">
+        <button id="load-sample-btn" type="button" class="secondary">Load sample</button>
+        <button id="import-btn" type="button" class="primary">Import &amp; Save</button>
+      </div>
+
+      <ul id="errors" class="errors hidden"></ul>
+      <p id="success-msg" class="success hidden"></p>
+    </section>
+
+    <section class="card">
+      <h2>Danger zone</h2>
+      <p class="muted">Clears the imported tier list entirely (drafted-state is managed separately from the popup's "Reset Draft" button).</p>
+      <button id="clear-btn" type="button" class="danger">Clear rankings</button>
+    </section>
+  </main>
+  <script type="module" src="options.js"></script>
+</body>
+</html>
