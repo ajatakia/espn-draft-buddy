@@ -20,6 +20,12 @@ A Chrome extension that overlays a tiered player rankings panel on ESPN's live f
 4. Click the extension icon → **Import rankings…** to open the options page and paste/upload your tier list (see [`docs/json-format.md`](docs/json-format.md) or [`docs/csv-format.md`](docs/csv-format.md)).
 5. Open a live ESPN fantasy football draft room (`fantasy.espn.com/football/...draft...`) — the overlay panel should appear.
 
+## Included starter rankings
+
+[`data/fantasylife-consensus.csv`](data/fantasylife-consensus.csv) is a ready-to-import list: 455 players across 10 tiers, from a FantasyLife consensus board. Upload it on the options page to get going without building your own list. Bye weeks are carried in the `notes` column.
+
+Note that team defenses in this file are named by full team name (e.g. `Houston Texans`), while ESPN's draft board shows them as `Texans D/ST` — so those 32 rows won't auto-match. They'll appear under "Unmatched Picks" in the overlay, where one click links them for the rest of the draft.
+
 ## Known limitation: auto-detection
 
 This extension was built without live access to ESPN's draft room DOM, so the CSS selectors used to scrape drafted-player names (`src/content/selectors.js`) are **best-effort placeholders**, not verified against the real page. Auto-detection may not fire until those selectors are updated.
