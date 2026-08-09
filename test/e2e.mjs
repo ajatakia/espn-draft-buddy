@@ -144,7 +144,56 @@ await page.waitForTimeout(600);
 ov = await readOverlay();
 check('manual click marks a player drafted', ov.drafted === before + 1, `${before} -> ${ov.drafted}`);
 
-// 5. reset clears drafted state but keeps the imported rankings
+// 5. checking a player off must not disturb the scroll position
+const scrollProbe = await page.evaluate(async () => {
+  const sr = document.getElementById('espn-draft-buddy-host').shadowRoot;
+  const body = sr.querySelector('.edb-body');
+  body.scrollTop = 400;
+  const before = body.scrollTop;
+  const row = [...sr.querySelectorAll('.edb-player')].find((r) => !r.classList.contains('edb-drafted'));
+  row.click();
+  await new Promise((r) => setTimeout(r, 800));
+  return { before, after: sr.querySelector('.edb-body').scrollTop };
+});
+check('checking a player keeps scroll position', scrollProbe.before > 0 && scrollProbe.after === scrollProbe.before,
+  `${scrollProbe.before} -> ${scrollProbe.after}`);
+
+// 6. an auto-detected pick arriving must not disturb scroll either
+const autoScroll = await page.evaluate(async () => {
+  const sr = document.getElementById('espn-draft-buddy-host').shadowRoot;
+  const body = sr.querySelector('.edb-body');
+  body.scrollTop = 500;
+  const before = body.scrollTop;
+
+  // Must be a player who is NOT already drafted, otherwise applyPicks() is a
+  // no-op and the check passes without exercising anything.
+  const row = [...sr.querySelectorAll('.edb-player')].find((r) => !r.classList.contains('edb-drafted'));
+  const name = row.querySelector('.edb-player-name').textContent.trim();
+  const [first, ...rest] = name.split(' ');
+
+  const cell = document.querySelector('.draft-board-grid-pick-cell.completedPick');
+  const clone = cell.cloneNode(true);
+  clone.querySelector('.roundPick').textContent = '99.9';
+  clone.querySelector('.playerFirstName').textContent = first;
+  clone.querySelector('.playerLastName').textContent = rest.join(' ');
+  cell.parentElement.appendChild(clone);
+
+  await new Promise((r) => setTimeout(r, 1500));
+  const after = sr.querySelector('.edb-body');
+  return {
+    before,
+    after: after.scrollTop,
+    name,
+    gotDrafted: [...after.querySelectorAll('.edb-player')]
+      .some((r) => r.querySelector('.edb-player-name').textContent.trim() === name
+        && r.classList.contains('edb-drafted')),
+  };
+});
+check('auto-detected pick keeps scroll position',
+  autoScroll.before > 0 && autoScroll.after === autoScroll.before && autoScroll.gotDrafted,
+  `${autoScroll.name}: ${autoScroll.before} -> ${autoScroll.after}, drafted=${autoScroll.gotDrafted}`);
+
+// 7. reset clears drafted state but keeps the imported rankings
 const resetPopup = await ctx.newPage();
 resetPopup.on('dialog', (d) => d.accept());
 await resetPopup.goto(`chrome-extension://${extId}/src/popup/popup.html`);
