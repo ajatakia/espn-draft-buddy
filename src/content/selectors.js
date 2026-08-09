@@ -1,44 +1,62 @@
 // ============================================================================
-// STATUS: UNVERIFIED. Every selector below is a best-effort placeholder based
-// on typical React-app markup conventions, NOT confirmed against ESPN's real
-// draft room DOM (no live browser access to fantasy.espn.com was available
-// while building this extension).
+// STATUS: VERIFIED against a real ESPN fantasy football draft room snapshot
+// (saved "Fantasy Football Draft - ESPN" page, 2026 season).
 //
-// This is the ONLY file (plus, if a pick element's internal structure truly
-// differs, the small extraction calls inside draft-observer.js's scan()) that
-// should need edits after real-world validation. The observer/diff/matching
-// machinery is written to be selector-agnostic.
+// The scraping target is the DRAFT BOARD GRID, not the pick-history table.
+// That choice matters:
+//   - The pick-history table is a virtualized fixed-data-table (react
+//     fixed-data-table) that renders one round at a time and only the rows
+//     currently scrolled into view — so most picks are absent from the DOM.
+//   - The draft board grid renders ALL pick cells for the whole draft at once
+//     (170 cells for a 10-team/17-round league in the reference snapshot),
+//     including picks made before the extension loaded. It also stays
+//     populated while its tab is inactive, so scraping works no matter which
+//     tab the user is looking at.
 //
-// How to update: during a real or mock ESPN draft, open DevTools, inspect the
-// pick-history list, and record findings in docs/espn-dom-notes.md. Then
-// update the values below and flip SELECTOR_STATUS.verified to true.
+// Reference markup for one completed pick:
+//
+//   <div class="draft-board-grid-pick-cell completedPick" style="grid-area: 1 / 1;">
+//     <div class="pickCellTop"><div class="roundPick">1.1</div></div>
+//     <div class="pickCellMiddle">
+//       <span class="playerFirstName">Puka</span>
+//       <span class="playerLastName">Nacua</span>
+//     </div>
+//     <div class="pickCellBottom">
+//       <span class="playerProTeam">LAR</span>
+//       <span class="positionPill">WR</span>
+//       <span class="byeWeek">(11)</span>
+//     </div>
+//   </div>
+//
+// NOTE: the first and last name live in SEPARATE spans with no whitespace
+// between them, so `pickCellMiddle.textContent` yields "PukaNacua". The name
+// must be assembled from the two spans — see draft-observer.js.
+//
+// If ESPN changes their markup, this file is the first place to update.
+// See docs/espn-dom-notes.md.
 // ============================================================================
 
 export const SELECTORS = {
-  // Any element that reliably indicates "we're on the live draft room" page
-  // (beyond the URL path check already done in content-script.js).
-  draftRoomMarker: '[class*="draftRoom" i], [class*="draft-room" i], [data-testid*="draft" i]',
+  // Root container of the draft board grid. Used as the observer target when
+  // present; the observer falls back to document.body until it appears.
+  draftBoardGrid: '.draftBoardGrid',
 
-  // The scrollable container that lists picks as they happen (sometimes
-  // called "Recent Picks" / pick history / draft board).
-  pickHistoryContainer: '[class*="pickHistory" i], [class*="draft-pick-list" i], [class*="recentPicks" i], [data-testid*="pick-list" i]',
+  // A pick cell that has actually been drafted. Cells for future picks exist
+  // in the grid too but lack the `completedPick` class, which is what makes
+  // this a reliable "has been drafted" filter.
+  completedPickCell: '.draft-board-grid-pick-cell.completedPick',
 
-  // Individual pick row/card within the container above.
-  pickHistoryItem: 'li[class*="pick" i], div[class*="pick" i][class*="row" i], div[class*="pick" i][class*="card" i]',
-
-  // Player's name text within a pick item.
-  playerNameInPick: '[class*="player" i][class*="name" i], [class*="playerinfo__playername" i]',
-
-  // Player's team/position text within a pick item (e.g. "RB - SF").
-  playerTeamPosInPick: '[class*="player" i][class*="detail" i], [class*="playerinfo__playerpos" i], [class*="playerinfo__playerteam" i]',
-
-  // Optional: element showing whose turn it is, useful for future features
-  // (e.g. highlighting the on-deck window) — not required for v1 detection.
-  onTheClockIndicator: '[class*="onTheClock" i], [class*="on-the-clock" i], [class*="onDeck" i]',
+  // Within a completed pick cell:
+  roundPick: '.roundPick', // e.g. "1.1" — stable unique id for the pick
+  playerFirstName: '.playerFirstName',
+  playerLastName: '.playerLastName',
+  playerProTeam: '.playerProTeam',
+  positionPill: '.positionPill',
 };
 
 export const SELECTOR_STATUS = {
-  verified: false,
-  lastUpdated: null,
-  notes: 'Placeholders only — awaiting live DOM inspection during a real or mock ESPN draft. See docs/espn-dom-notes.md.',
+  verified: true,
+  lastUpdated: '2026-08-09',
+  notes:
+    'Verified against a saved ESPN draft room page (170 completed picks). Targets the draft board grid because the pick-history table is virtualized.',
 };

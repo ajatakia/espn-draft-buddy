@@ -22,9 +22,14 @@
   "content_scripts": [
     {
       "matches": ["https://fantasy.espn.com/football/*"],
-      "js": ["src/content/content-script.js"],
-      "type": "module",
+      "js": ["src/content/loader.js"],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/content/*.js", "src/shared/*.js"],
+      "matches": ["https://fantasy.espn.com/*"]
     }
   ],
   "icons": {

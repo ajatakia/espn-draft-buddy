@@ -1,51 +1,70 @@
 import { initOverlay } from './overlay.js';
 import { initObserver } from './draft-observer.js';
-import { getTierList, getDraftState, updateDraftState } from '../shared/storage.js';
+import { getTierList, getDraftState, setDraftState } from '../shared/storage.js';
 import { buildPlayerIndex, matchPlayer } from '../shared/matching.js';
 
 function isDraftRoomPage() {
   return location.hostname === 'fantasy.espn.com' && location.pathname.toLowerCase().includes('draft');
 }
 
-async function handlePick(rawName, rawMeta) {
+// Storage updates are read-modify-write, so overlapping batches would clobber
+// each other (the first board scan alone can report 100+ picks at once).
+// Chaining every batch through one promise keeps them strictly sequential.
+let queue = Promise.resolve();
+function enqueue(task) {
+  queue = queue.then(task).catch((err) => console.error('[ESPN Draft Buddy]', err));
+  return queue;
+}
+
+async function applyPicks(picks) {
   const tierList = await getTierList();
   const playerIndex = buildPlayerIndex(tierList);
   const draftState = await getDraftState();
 
-  const result = matchPlayer(rawName, playerIndex, draftState.nameOverrides);
+  const drafted = { ...draftState.draftedPlayerIds };
+  const unmatched = [...draftState.unmatchedPicks];
+  let changed = false;
 
-  await updateDraftState((ds) => {
+  for (const pick of picks) {
+    const result = matchPlayer(pick.name, playerIndex, draftState.nameOverrides);
+
     if (result.matched) {
-      if (ds.draftedPlayerIds[result.playerId]) return ds; // already recorded
-      return {
-        ...ds,
-        draftedPlayerIds: {
-          ...ds.draftedPlayerIds,
-          [result.playerId]: { draftedAt: new Date().toISOString(), method: 'auto' },
-        },
-      };
+      if (drafted[result.playerId]) continue;
+      drafted[result.playerId] = { draftedAt: new Date().toISOString(), method: 'auto' };
+      changed = true;
+      continue;
     }
 
-    // Avoid piling up duplicate unmatched entries for the same raw text.
-    const already = ds.unmatchedPicks.some((u) => u.normalizedText === result.normalized);
-    if (already) return ds;
-    return {
-      ...ds,
-      unmatchedPicks: [
-        ...ds.unmatchedPicks,
-        { rawText: rawName, normalizedText: result.normalized, detectedAt: new Date().toISOString() },
-      ],
-    };
-  });
+    if (unmatched.some((u) => u.normalizedText === result.normalized)) continue;
+    unmatched.push({
+      rawText: pick.name,
+      normalizedText: result.normalized,
+      detectedAt: new Date().toISOString(),
+      team: pick.team,
+      position: pick.position,
+    });
+    changed = true;
+  }
+
+  if (!changed) return;
+  await setDraftState({ ...draftState, draftedPlayerIds: drafted, unmatchedPicks: unmatched });
 }
 
-async function main() {
+export async function start() {
   if (!isDraftRoomPage()) return;
 
   const overlay = initOverlay();
+  let reportedBoard = false;
 
-  const observerResult = await initObserver({ onPickDetected: handlePick });
-  overlay.setAutoDetectStatus(observerResult.active, observerResult.reason);
+  const watcher = initObserver({
+    onPicksDetected: (picks) => {
+      enqueue(() => applyPicks(picks));
+      if (!reportedBoard) {
+        reportedBoard = true;
+        overlay.setAutoDetectStatus(true, null);
+      }
+    },
+  });
+
+  overlay.setAutoDetectStatus(true, watcher.foundBoard ? null : 'waiting for draft board');
 }
-
-main();

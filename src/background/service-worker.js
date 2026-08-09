@@ -24,3 +24,11 @@ async function updateBadge() {
 
 onChange([STORAGE_KEYS.DRAFT_STATE], updateBadge);
 updateBadge();
+
+// The overlay runs in a content script, which cannot call openOptionsPage
+// itself — it sends this message instead.
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.type === 'openOptionsPage') {
+    chrome.runtime.openOptionsPage();
+  }
+});

@@ -204,8 +204,10 @@ export function initOverlay() {
       await resetDraftState();
     });
 
+    // chrome.runtime.openOptionsPage() is not exposed to content scripts —
+    // only an extension page or the background worker can call it.
     panel.querySelector('#edb-options-btn')?.addEventListener('click', () => {
-      chrome.runtime.openOptionsPage();
+      chrome.runtime.sendMessage({ type: 'openOptionsPage' });
     });
 
     wireDrag();

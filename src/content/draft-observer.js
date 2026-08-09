@@ -1,18 +1,5 @@
 import { SELECTORS } from './selectors.js';
 
-function waitForElement(selector, { timeout = 15000, interval = 300 } = {}) {
-  return new Promise((resolve) => {
-    const start = Date.now();
-    const check = () => {
-      const el = document.querySelector(selector);
-      if (el) return resolve(el);
-      if (Date.now() - start >= timeout) return resolve(null);
-      setTimeout(check, interval);
-    };
-    check();
-  });
-}
-
 function debounce(fn, wait) {
   let t = null;
   return (...args) => {
@@ -21,57 +8,74 @@ function debounce(fn, wait) {
   };
 }
 
-// Builds a reasonably stable key for a pick element so we don't re-report
-// the same pick on every mutation. Uses DOM position + a hash of its text,
-// since ESPN's pick items likely don't expose a stable id/key attribute.
-function pickKey(el, idx) {
-  const text = (el.textContent || '').trim().slice(0, 120);
-  return `${idx}::${text}`;
+// Assembles a pick's player name from the two separate name spans. ESPN emits
+// them with no whitespace between, so reading the parent's textContent would
+// produce "PukaNacua" — the join has to be explicit.
+function readPick(cell) {
+  const id = cell.querySelector(SELECTORS.roundPick)?.textContent?.trim() || '';
+  const first = cell.querySelector(SELECTORS.playerFirstName)?.textContent?.trim() || '';
+  const last = cell.querySelector(SELECTORS.playerLastName)?.textContent?.trim() || '';
+  const name = `${first} ${last}`.trim();
+  if (!name) return null;
+  return {
+    id: id || name, // roundPick ("3.7") is unique per draft; fall back to name
+    name,
+    team: cell.querySelector(SELECTORS.playerProTeam)?.textContent?.trim() || '',
+    position: cell.querySelector(SELECTORS.positionPill)?.textContent?.trim() || '',
+  };
 }
 
-// Starts observing the ESPN draft room for new picks.
-// onPickDetected(rawName: string, rawMeta: string) is called once per newly
-// seen pick item, in DOM order, including any picks already present on load
-// (handles the case where the pick list is virtualized/partially rendered).
+// Watches the ESPN draft board for completed picks.
 //
-// Resolves to { active: true, observer } on success, or
-// { active: false, reason } if the expected containers never appear —
-// callers must treat this as non-fatal and keep the rest of the extension
-// (manual toggling) fully functional.
-export async function initObserver({ onPickDetected }) {
-  const root = await waitForElement(SELECTORS.draftRoomMarker, { timeout: 15000 });
-  if (!root) {
-    return { active: false, reason: 'draft-room-marker-not-found' };
-  }
+// onPicksDetected(picks[]) is called with only the picks not previously seen,
+// batched per scan — including a full batch on the very first scan, which is
+// how picks made before the extension loaded get caught up.
+//
+// Returns { active, reason, observer, stop }. `active: false` is never fatal:
+// the caller keeps the overlay running in manual mode.
+export function initObserver({ onPicksDetected }) {
+  const seen = new Set();
+  let sawAnyCell = false;
 
-  const container = await waitForElement(SELECTORS.pickHistoryContainer, { timeout: 15000 });
-  if (!container) {
-    return { active: false, reason: 'pick-history-container-not-found' };
-  }
+  const collect = () => {
+    const cells = document.querySelectorAll(SELECTORS.completedPickCell);
+    if (cells.length === 0) return;
+    sawAnyCell = true;
 
-  const seenPickKeys = new Set();
-
-  const scan = debounce(() => {
-    const items = container.querySelectorAll(SELECTORS.pickHistoryItem);
-    items.forEach((el, idx) => {
-      const key = pickKey(el, idx);
-      if (seenPickKeys.has(key)) return;
-      seenPickKeys.add(key);
-
-      const nameEl = el.querySelector(SELECTORS.playerNameInPick);
-      const metaEl = el.querySelector(SELECTORS.playerTeamPosInPick);
-      const rawName = nameEl?.textContent?.trim();
-      if (!rawName) return; // likely an empty/placeholder slot, not a real pick
-
-      onPickDetected(rawName, metaEl?.textContent?.trim() ?? '');
+    const fresh = [];
+    cells.forEach((cell) => {
+      const pick = readPick(cell);
+      if (!pick || seen.has(pick.id)) return;
+      seen.add(pick.id);
+      fresh.push(pick);
     });
-  }, 150);
+    if (fresh.length > 0) onPicksDetected(fresh);
+  };
 
+  const scan = debounce(collect, 250);
+
+  // Observing document.body rather than the grid container keeps this working
+  // when React re-mounts the board (e.g. on tab switches) and when the board
+  // renders after the extension has already loaded. Picks are marked drafted
+  // by a class change on an existing cell, so attributes must be watched too.
   const observer = new MutationObserver(scan);
-  observer.observe(container, { childList: true, subtree: true, characterData: true });
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class'],
+  });
 
-  // Catch picks already rendered before the observer attached.
-  scan();
+  collect(); // immediate first pass for picks already on the board
 
-  return { active: true, observer };
+  return {
+    active: true,
+    get foundBoard() {
+      return sawAnyCell;
+    },
+    observer,
+    stop() {
+      observer.disconnect();
+    },
+  };
 }

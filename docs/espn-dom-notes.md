@@ -1,60 +1,59 @@
 # ESPN draft room DOM notes
 
-`src/content/selectors.js` currently contains **unverified placeholder** selectors — this extension was built without live access to ESPN's fantasy football draft room, so auto-detection of drafted players may not work out of the box.
+**Status: verified.** These selectors were confirmed against a real saved ESPN fantasy football draft room page (2026 season, 10-team / 17-round league, 170 completed picks). `src/content/selectors.js` reflects what's documented here.
 
-To fix this, run a real or mock draft on `fantasy.espn.com` and fill in the sections below, then update `src/content/selectors.js` to match.
+## Scraping target: the draft board grid (not pick history)
 
-## How to inspect
+There are two places picks appear in the draft room. Only one is usable:
 
-1. Open a live ESPN fantasy football draft room (or a mock draft, if the DOM is close enough — note any differences).
-2. Open Chrome DevTools (F12) → Elements panel.
-3. Right-click the container that lists picks as they happen ("Recent Picks" / pick history) → Inspect.
-4. Right-click that element in the Elements panel → Copy → Copy outerHTML.
-5. Paste the snippet into the relevant section below, trimmed to the interesting structure (class names, nesting).
+| | Pick history table | **Draft board grid** |
+|---|---|---|
+| Markup | `.pick-history-table` → react `fixedDataTable` | `.draftBoardGrid` → `.draft-board-grid-pick-cell` |
+| Completeness | **Virtualized** — one round at a time, only rows scrolled into view | **All picks at once** (170/170 present in the DOM) |
+| Available when tab inactive | n/a | Yes — cells stay populated |
+| Verdict | Unusable | **What we scrape** |
 
-## 1. Draft room marker
+The grid is the better target on every axis, most importantly that picks made *before* the extension loaded are still in the DOM, so joining a draft late works.
 
-_Paste an HTML snippet of an element/attribute that reliably indicates you're on the draft room page (e.g. a top-level container with a distinctive class or `data-testid`)._
-
-```html
-<!-- paste here -->
-```
-
-## 2. Pick history container
-
-_The scrollable list that holds all picks as they're made._
+## Markup of one completed pick
 
 ```html
-<!-- paste here -->
+<div class="draft-board-grid-pick-cell completedPick" style="grid-area: 1 / 1; --position-color: 1, 199, 242;">
+  <div class="pickCellTop">
+    <div class="roundPick">1.1</div>
+  </div>
+  <div class="pickCellMiddle">
+    <span class="playerFirstName">Puka</span>
+    <span class="playerLastName">Nacua</span>
+  </div>
+  <div class="pickCellBottom">
+    <span class="playerProTeam">LAR</span>
+    <span class="positionPill">WR</span>
+    <span class="byeWeek">(11)</span>
+  </div>
+</div>
 ```
 
-## 3. Individual pick item
+Container chain: `.draftBoardGrid` → `.draftBoardGrid__container` → `.draftBoard`.
 
-_One single pick's markup — ideally copy two or three so we can see what's stable vs. what varies (e.g. team logo, pick number)._
+## Gotchas worth knowing
 
-```html
-<!-- paste here -->
-```
+1. **The name is split across two spans with no whitespace between them.** Reading `.pickCellMiddle.textContent` yields `"PukaNacua"`. The first and last name must be read from `.playerFirstName` / `.playerLastName` separately and joined with a space. This is handled in `draft-observer.js` (`readPick`).
 
-## 4. Player name element (within a pick item)
+2. **`completedPick` is the "has been drafted" flag.** Cells for future picks exist in the grid but lack this class, so the observer selects `.draft-board-grid-pick-cell.completedPick`. Because a pick is registered by a *class change on an existing node* (not a new node being appended), the MutationObserver must watch `attributes` with `attributeFilter: ['class']` — `childList` alone would miss picks.
 
-```html
-<!-- paste here -->
-```
+3. **`.roundPick` (e.g. `"3.7"`) is a stable unique id per pick.** It's used as the dedup key so repeated scans are cheap no-ops.
 
-## 5. Player team/position element (within a pick item)
+4. **DOM order is not pick order.** Cells are laid out by `grid-area` (team column × round), so the grid reads `1.1, 2.10, 3.1, 4.10…`. Nothing should rely on document order.
 
-```html
-<!-- paste here -->
-```
+5. **The board tab can be inactive** (`tab__item dn`, Tachyons `display:none`) and the cells are still fully populated — scraping works regardless of which tab the user is on.
 
-## 6. "On the clock" indicator (optional, for future features)
+6. **ESPN keeps name suffixes; some ranking sources strip them.** ESPN shows `Marvin Harrison Jr.`, `Kenneth Walker III`, `Kyle Pitts Sr.`. `normalizePlayerName()` strips trailing `Jr/Sr/II/III/IV/V`, so these match sources that omit them.
 
-```html
-<!-- paste here -->
-```
+7. **Defenses are `"<Nickname> D/ST"`** — `Lions D/ST`, `Steelers D/ST` — with `.playerProTeam` holding the abbreviation (`DET`, `PIT`). Ranking sources that list `"Detroit Lions"` will not match; `data/fantasylife-consensus.csv` is written in ESPN's form.
 
-## Notes / gotchas observed
+8. **Team abbreviations differ between sources.** ESPN uses `LAR`, `WSH`, `JAX`; some ranking sites use `LA`, `WAS`, `JAC`. This is display-only and does not affect matching, which is name-based.
 
-- _Is the pick list virtualized (only recent picks kept in the DOM)? If so, the observer's initial scan may miss early picks made before the extension attached — note here if that's the case, since it changes how the initial scan should behave._
-- _Any differences between the live draft room and the mock draft lobby, if you tested both._
+## Re-verifying after an ESPN redesign
+
+If auto-detection stops working, open a draft room in DevTools and confirm the class names above still exist. In almost all cases only `src/content/selectors.js` needs updating — the observer, matching, and overlay code are selector-agnostic.
