@@ -157,16 +157,16 @@ export function initOverlay() {
       .map((p) => `<option value="${escapeAttr(p.id)}">${escapeHtml(p.name)} (${escapeHtml(p.position)} ${escapeHtml(p.team)})</option>`)
       .join('');
     const unmatchedHtml = unmatched.length === 0 ? '' : `
-      <div class="edb-tier" data-tier-number="unmatched">
+      <div class="edb-tier edb-unmatched-section" data-tier-number="unmatched">
         <div class="edb-tier-header" data-tier-toggle="unmatched">
           <span class="edb-caret">▾</span>
-          <span>Unmatched Picks</span>
+          <span>⚠ Drafted, not in your list</span>
           <span class="edb-tier-count">${unmatched.length}</span>
         </div>
         <div class="edb-players">
           ${unmatched.map((u) => `
             <div class="edb-unmatched-item">
-              <div class="edb-unmatched-raw">${escapeHtml(u.rawText)}</div>
+              <div class="edb-unmatched-raw">${escapeHtml(u.rawText)}${u.position || u.team ? ` <span class="edb-player-meta">${escapeHtml(u.position || '')} ${escapeHtml(u.team || '')}</span>` : ''}</div>
               <select class="edb-unmatched-select" data-unmatched-key="${escapeAttr(u.normalizedText)}">
                 <option value="">Link to player…</option>
                 ${playerOptions}
@@ -175,7 +175,9 @@ export function initOverlay() {
         </div>
       </div>`;
 
-    bodyEl.innerHTML = tiersHtml + unmatchedHtml;
+    // Unmatched picks go FIRST. Below 400+ player rows they were effectively
+    // invisible, so a missed player just looked like the extension had failed.
+    bodyEl.innerHTML = unmatchedHtml + tiersHtml;
     bodyEl.scrollTop = scrollTop;
   }
 

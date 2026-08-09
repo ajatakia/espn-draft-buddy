@@ -28,7 +28,20 @@ A Chrome extension that overlays a tiered player rankings panel on ESPN's live f
 
 Verified against a real ESPN draft room. The content script watches the **draft board grid** (`.draft-board-grid-pick-cell.completedPick`), not the pick-history table — the latter is virtualized and only holds one round's visible rows, while the grid carries every pick in the DOM at once. That's also why picks made before you loaded the extension get caught up on the first scan.
 
-Measured against a completed 170-pick draft using the included rankings, **168 of 170 picks matched automatically**. The two misses were nickname differences between sources (ESPN's `Kenny Gainwell` vs. the rankings' `Kenneth Gainwell`; `Woody Marks` vs. `Jo'quavioius Marks`) — the kind of thing the "Unmatched Picks" section exists for: one click links the name, and it sticks for the rest of the draft.
+### Name matching
+
+Sources disagree about first names — ESPN says `Kenny Gainwell`, the rankings say `Kenneth Gainwell`; ESPN says `Woody Marks`, the rankings say `Jo'quavioius Marks`. So matching is a ladder, stopping at the first hit:
+
+1. a manual override you set by resolving an earlier unmatched pick
+2. exact normalized name (case, punctuation, and `Jr./Sr./III` suffixes removed)
+3. last name + position + team
+4. last name + position
+
+Steps 3 and 4 accept a candidate **only if it's unique**. Marking the wrong player drafted is worse than leaving one unmatched, so an ambiguous last name falls through to the unmatched list instead of guessing — `robinson|RB` (Bijan vs. Brian) and `brown|WR` (four of them) are among 29 such keys in the bundled rankings, and none of them will fuzzy-match without a distinguishing team. A wrong position never matches at all.
+
+Against a completed 170-pick draft with the included rankings, **170 of 170 matched** — 168 exact, 2 via last name + position + team.
+
+Anything that still misses lands in the **"Drafted, not in your list"** section pinned to the top of the panel, where one click links it for the rest of the draft.
 
 All ESPN-specific selectors live in [`src/content/selectors.js`](src/content/selectors.js), with the full markup reference and gotchas in [`docs/espn-dom-notes.md`](docs/espn-dom-notes.md). If ESPN redesigns, that one file is normally the only thing to update.
 

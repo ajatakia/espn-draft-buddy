@@ -26,7 +26,10 @@ async function applyPicks(picks) {
   let changed = false;
 
   for (const pick of picks) {
-    const result = matchPlayer(pick.name, playerIndex, draftState.nameOverrides);
+    const result = matchPlayer(pick.name, playerIndex, draftState.nameOverrides, {
+      position: pick.position,
+      team: pick.team,
+    });
 
     if (result.matched) {
       if (drafted[result.playerId]) continue;

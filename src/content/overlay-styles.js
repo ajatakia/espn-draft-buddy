@@ -110,6 +110,17 @@ export const OVERLAY_CSS = `
 
 .edb-empty { padding: 16px 12px; color: #6b7280; font-size: 12px; text-align: center; }
 
+.edb-unmatched-section .edb-tier-header {
+  background: #3a2a1c;
+  color: #e0b070;
+}
+.edb-unmatched-section .edb-tier-count {
+  background: #e0b070;
+  color: #1b1e26;
+  border-radius: 999px;
+  padding: 0 7px;
+  font-weight: 700;
+}
 .edb-unmatched-item {
   padding: 6px 12px;
   border-top: 1px solid #21242c;

@@ -193,7 +193,18 @@ check('auto-detected pick keeps scroll position',
   autoScroll.before > 0 && autoScroll.after === autoScroll.before && autoScroll.gotDrafted,
   `${autoScroll.name}: ${autoScroll.before} -> ${autoScroll.after}, drafted=${autoScroll.gotDrafted}`);
 
-// 7. reset clears drafted state but keeps the imported rankings
+// 7. a first-name variant (ESPN "Kenny Gainwell" vs rankings "Kenneth
+//    Gainwell") must still resolve via the last-name+position+team fallback
+const nickname = await page.evaluate(async () => {
+  const sr = document.getElementById('espn-draft-buddy-host').shadowRoot;
+  const row = [...sr.querySelectorAll('.edb-player')]
+    .find((r) => r.querySelector('.edb-player-name').textContent.trim() === 'Kenneth Gainwell');
+  return row ? { found: true, drafted: row.classList.contains('edb-drafted') } : { found: false };
+});
+check('first-name variant resolves (Kenny -> Kenneth Gainwell)',
+  nickname.found && nickname.drafted, JSON.stringify(nickname));
+
+// 8. reset clears drafted state but keeps the imported rankings
 const resetPopup = await ctx.newPage();
 resetPopup.on('dialog', (d) => d.accept());
 await resetPopup.goto(`chrome-extension://${extId}/src/popup/popup.html`);
