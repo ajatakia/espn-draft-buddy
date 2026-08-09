@@ -17,12 +17,15 @@ A Chrome extension that overlays a tiered player rankings panel on ESPN's live f
 1. Open `chrome://extensions` in Chrome.
 2. Enable **Developer mode** (top-right toggle).
 3. Click **Load unpacked** and select this repo's root folder.
-4. Click the extension icon → **Import rankings…** to open the options page and paste/upload your tier list (see [`docs/json-format.md`](docs/json-format.md) or [`docs/csv-format.md`](docs/csv-format.md)).
-5. Open a live ESPN fantasy football draft room (`fantasy.espn.com/football/...draft...`) — the overlay panel should appear.
+4. Open a live ESPN fantasy football draft room (`fantasy.espn.com/football/...draft...`) — the overlay appears with the bundled rankings already loaded.
 
-## Included starter rankings
+To use your own rankings instead, click the extension icon → **Import rankings…** and paste or upload your list (see [`docs/json-format.md`](docs/json-format.md) or [`docs/csv-format.md`](docs/csv-format.md)).
 
-[`data/fantasylife-consensus.csv`](data/fantasylife-consensus.csv) is a ready-to-import list: 455 players across 10 tiers, from a FantasyLife consensus board. Upload it on the options page to get going without building your own list. Bye weeks are carried in the `notes` column, and team defenses are written in ESPN's `Lions D/ST` form so they auto-match.
+## Bundled rankings (loaded by default)
+
+[`data/fantasylife-consensus.csv`](data/fantasylife-consensus.csv) — 455 players across 10 tiers from a FantasyLife consensus board — ships with the extension and is **loaded automatically on install**. There's nothing to import to get started. Bye weeks ride along in the `notes` column, and team defenses are written in ESPN's `Lions D/ST` form so they auto-match.
+
+Importing your own list replaces it, and an existing list is never overwritten on update — so if you upgrade from a version that predates this, click **Load bundled rankings** on the options page to pull in the current file.
 
 ## Auto-detection
 

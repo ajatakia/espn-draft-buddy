@@ -78,6 +78,16 @@ await ctx.route('http*://**/*', (route) =>
 const sw = ctx.serviceWorkers()[0] || (await ctx.waitForEvent('serviceworker', { timeout: 10000 }));
 const extId = sw.url().match(/^chrome-extension:\/\/([a-z]+)\//)[1];
 
+// 0. a fresh profile must already have rankings, with no import performed
+const seeded = await ctx.newPage();
+seeded.on('pageerror', (e) => errors.push(`options: ${e.message}`));
+await seeded.goto(`chrome-extension://${extId}/src/options/options.html`);
+await seeded.waitForTimeout(1500);
+await seeded.reload();
+const seededMsg = (await seeded.textContent('#current-summary'))?.trim();
+check('bundled rankings load with no import', /\d+ players across \d+ tiers/.test(seededMsg || '') && /bundled/.test(seededMsg || ''), seededMsg);
+await seeded.close();
+
 // 1. import rankings through the options page
 const options = await ctx.newPage();
 options.on('pageerror', (e) => errors.push(`options: ${e.message}`));
@@ -88,6 +98,16 @@ await options.click('#import-btn');
 await options.waitForTimeout(1200);
 const importMsg = (await options.textContent('#success-msg'))?.trim();
 check('options page imports CSV', /players across \d+ tiers/.test(importMsg || ''), importMsg);
+
+// An existing install is never auto-reseeded (user data is not clobbered), so
+// the restore button is the only path back to the bundled list.
+options.on('dialog', (d) => d.accept());
+await options.click('#clear-btn');
+await options.waitForTimeout(600);
+await options.click('#load-bundled-btn');
+await options.waitForTimeout(1200);
+const restoredMsg = (await options.textContent('#success-msg'))?.trim();
+check('restore button reloads bundled rankings', /Loaded bundled rankings: \d+ players/.test(restoredMsg || ''), restoredMsg);
 await options.close();
 
 // 2. overlay injects on the draft page and auto-detects picks

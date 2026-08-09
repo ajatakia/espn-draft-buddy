@@ -2,6 +2,7 @@ import { getTierList, setTierList } from '../shared/storage.js';
 import { parseCsv } from '../shared/csv-parser.js';
 import { validateTierListJson, jsonToRawTiers, SAMPLE_JSON } from '../shared/tier-list-schema.js';
 import { buildTierList } from '../shared/matching.js';
+import { loadBundledRankings } from '../shared/default-rankings.js';
 
 const jsonPanel = document.getElementById('json-panel');
 const csvPanel = document.getElementById('csv-panel');
@@ -10,6 +11,7 @@ const csvInput = document.getElementById('csv-input');
 const fileInput = document.getElementById('file-input');
 const importBtn = document.getElementById('import-btn');
 const loadSampleBtn = document.getElementById('load-sample-btn');
+const loadBundledBtn = document.getElementById('load-bundled-btn');
 const clearBtn = document.getElementById('clear-btn');
 const errorsEl = document.getElementById('errors');
 const successEl = document.getElementById('success-msg');
@@ -102,6 +104,18 @@ importBtn.addEventListener('click', async () => {
   }
 });
 
+loadBundledBtn.addEventListener('click', async () => {
+  try {
+    const tierList = await loadBundledRankings();
+    await setTierList(tierList);
+    const playerCount = tierList.tiers.reduce((sum, t) => sum + t.players.length, 0);
+    showSuccess(`Loaded bundled rankings: ${playerCount} players across ${tierList.tiers.length} tiers.`);
+    await renderSummary();
+  } catch (e) {
+    showErrors([`Could not load bundled rankings: ${e.message}`]);
+  }
+});
+
 clearBtn.addEventListener('click', async () => {
   if (!window.confirm('Clear the imported tier list? This cannot be undone.')) return;
   await setTierList({ version: 1, importedAt: null, source: null, tiers: [] });
@@ -116,7 +130,8 @@ async function renderSummary() {
     currentSummaryEl.textContent = 'No rankings imported yet.';
   } else {
     const when = tierList.importedAt ? new Date(tierList.importedAt).toLocaleString() : 'unknown time';
-    currentSummaryEl.textContent = `${playerCount} players across ${tierList.tiers.length} tiers, imported ${when} (source: ${tierList.source}).`;
+    const origin = tierList.source === 'bundled' ? 'bundled list, loaded' : `imported from ${tierList.source}`;
+    currentSummaryEl.textContent = `${playerCount} players across ${tierList.tiers.length} tiers — ${origin} ${when}.`;
   }
 }
 
